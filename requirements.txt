@@ -1,0 +1,8 @@
+jax
+jaxlib
+matplotlib
+numpy
+osqp
+pytest
+scipy
+tqdm
