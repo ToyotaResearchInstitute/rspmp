@@ -115,7 +115,10 @@ def plot():
 
     times_states = jnp.repeat(times[np.newaxis], repeats=M, axis=0)
     times_controls = times[:-1]
-    colors = ["r", "g", "b"]
+    # colors = ["r", "g", "b"]
+    # colors = ["k", "b", "r"]
+    # colors = ["r", "#FFC20A", "b"]
+    colors = ["k", "r", "b"]
     solvers = ["openloop", "feedback"]
 
     # feedback u = K x
@@ -137,7 +140,7 @@ def plot():
                 times_states.T,
                 states[..., dim].T,
                 c=colors[dim],
-                alpha=0.3,
+                alpha=0.4,
                 linewidth=2,
             )
         if solver_i == 0:
@@ -148,7 +151,7 @@ def plot():
             if solver_i == 0:
                 alpha = 1
             elif solver_i == 1:
-                alpha = 0.3
+                alpha = 0.4
 
             plt.plot(
                 times_controls,
@@ -168,7 +171,7 @@ def plot():
                 times_states.T,
                 costates[..., dim].T,
                 c=colors[dim],
-                alpha=0.3,
+                alpha=0.4,
                 linewidth=2,
             )
         if solver_i == 0:
@@ -196,10 +199,33 @@ def plot():
             plt.subplot(2, 3, 3 * solver_i + 1 + plot_i)
             plt.xlim(xlims[variable])
             plt.ylim(ylims[variable])
+            # legend
+            for dim in range(n_x):
+                if variable == "states":
+                    xs, ys = times_states[0, -2:].T, states[..., dim][0, -2:].T + 1e6
+                    label = r"$x_{" + f"{dim+1}" + ",t}$"
+                elif variable == "controls":
+                    if solver == "openloop":
+                        xs, ys = times_controls[-2:], controls[..., dim][-2:].T + 1e6
+                    elif solver == "feedback":
+                        xs, ys = times_controls[-2:], controls[..., dim][0, -2:].T + 1e6
+                    label = r"$u_{" + f"{dim+1}" + ",t}$"
+                elif variable == "costates":
+                    xs, ys = times_states[0, -2:].T, costates[..., dim][0, -2:].T + 1e6
+                    label = r"$p_{" + f"{dim+1}" + ",t}$"
+                plt.plot(xs.T, ys.T, c=colors[dim], alpha=1, linewidth=2, label=label)
+            plt.legend(
+                fontsize=22,
+                handlelength=0.75,
+                loc="lower right",
+                ncol=3,
+                columnspacing=0.4,
+                handletextpad=0.35,
+                borderpad=0.2
+            )
     plt.tight_layout()
     plt.subplots_adjust(wspace=0.205, hspace=0.126)
     plt.savefig("results/openloop_feedback.png")
-    # plt.show()
 
 
 if __name__ == "__main__":

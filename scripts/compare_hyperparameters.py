@@ -212,6 +212,24 @@ def plot():
     plt.tight_layout()
     plt.savefig("results/comparison.png")
 
+    for horizon_i, N in enumerate(horizons):
+        # msg = [f"{1e3*computation_times[solver][j, horizon_i]}" for j in range(len(sample_sizes))]
+        msg = [computation_times["sqp"][j, horizon_i]/computation_times["pmp"][j, horizon_i] for j in range(len(sample_sizes))]
+        # msg = [1e3*computation_times[solver][j, horizon_i] for j in range(len(sample_sizes))]
+        msg = [round(m, 1) for m in msg]
+        msg = [f"${m}$" for m in msg]
+        msg = ' & '.join([m for m in msg])
+        print("$N =", N, "$ &", msg)
+
+    for horizon_i, N in enumerate(horizons):
+        msg = [computation_times["sqp"][j, horizon_i] for j in range(len(sample_sizes))]
+        msg2 = [computation_times["pmp"][j, horizon_i] for j in range(len(sample_sizes))]
+        msg = [round(1e3 * m) for m in msg]
+        msg2 = [round(1e3 * m) for m in msg2]
+        msg = [f"${m} / {m2}$" for m, m2 in zip(msg, msg2)]
+        msg = ' & '.join([m for m in msg])
+        print("$N =", N, "$ &", msg)
+
     speedups = np.zeros((len(sample_sizes), len(horizons)))
     for horizon_i in range(len(horizons)):
         for sample_size_i in range(len(sample_sizes)):
@@ -269,7 +287,7 @@ def plot():
     plt.grid(which="major", alpha=1.0, linestyle=":")
     plt.tight_layout()
     plt.savefig("results/sample_sizes_sweep.png")
-
+    plt.show()
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
