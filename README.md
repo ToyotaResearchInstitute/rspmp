@@ -1,11 +1,14 @@
-# Rough Stochastic Pontryagin Maximum Principle and an Indirect Shooting Method
+
+# Indirect Shooting Methods for Stochastic Optimal Control based on the Rough Stochastic Maximum Principle
 
 ## About
 
-Code for reproducing results in (T. Lew,
-"Rough Stochastic Pontryagin Maximum Principle and an Indirect Shooting Method",
-available at [https://arxiv.org/abs/2502.06726](https://arxiv.org/abs/2502.06726),
-2025).
+Code for reproducing results in
+- T. Lew,
+"Unified Optimality Conditions for Stochastic Optimal Control in the Rough Path and Itô Frameworks", 2026,
+available at [https://arxiv.org/abs/2609.38395](https://arxiv.org/abs/2609.38395).
+- T. Lew, "Rough Stochastic Pontryagin Maximum Principle and an Indirect Shooting Method", SIAM Journal on Control and Optimization, 2026,
+available at [https://arxiv.org/abs/2502.06726](https://arxiv.org/abs/2502.06726).
 
 ![openloop_feedback](/scripts/results/openloop_feedback.png)
 
@@ -36,6 +39,14 @@ python compare_openloop_feedback.py --solve --plot
 ```bash
 python compare_hyperparameters.py  --solve-comparison --sample-sizes-sweep
 ```
+
+* Generate the feedback shooting results:
+
+```bash
+python feedback_comparison.py
+```
+
+Results are saved in `results/feedback_comparison/`. To regenerate figures from the saved data, run `python feedback_comparison.py --plot-only`.
 
 ## Setup
 

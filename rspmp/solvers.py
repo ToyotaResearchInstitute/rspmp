@@ -7,14 +7,12 @@ from typing import Any, Dict
 import jax.numpy as jnp
 import numpy as np
 import osqp
-from jax import config, grad, hessian, jacfwd, jit, vmap
+from jax import grad, hessian, jacfwd, jit, vmap
 from jax.lax import scan
 from scipy.sparse import csc_matrix
 
 from rspmp.problems import FeedbackOptimalControlProblem, OptimalControlProblem
 from rspmp.utils import value_and_jacfwd
-
-config.update("jax_debug_nans", True)
 
 solver_parameters = {
     "num_iterations_max": 10,
@@ -263,8 +261,7 @@ class SQPSolver:
             self.A,
             self.l,
             self.u,
-            linsys_solver="qdldl",
-            warm_start=self.params["warm_start"],
+            warm_starting=self.params["warm_start"],
             verbose=self.params["osqp_verbose"],
             eps_abs=self.params["osqp_tolerance"],
             eps_rel=self.params["osqp_tolerance"],
@@ -388,10 +385,6 @@ class IndirectSolver:
             print("Initializing solver class.")
         self.params = parameters
         self.problem = problem
-        try:
-            self.solve(verbose=False)
-        except Exception as e:
-            raise e
         if verbose:
             print(">>> Done")
 
@@ -543,7 +536,10 @@ class IndirectSolver:
             states, costates = jnp.split(states_costates, 2, axis=-1)
             control = self.optimal_control(states, costates, problem_params)
 
-            shooting_drifts = vmap(self.shooting_drift, in_axes=(0, None, None))
+            control_in_axes = None if control.ndim == 1 else 0
+            shooting_drifts = vmap(
+                self.shooting_drift, in_axes=(0, control_in_axes, None)
+            )
             next_states_costates = states_costates + dt * shooting_drifts(
                 states_costates, control, problem_params
             )
@@ -561,7 +557,7 @@ class IndirectSolver:
                 return 0.5 * jnp.concatenate(
                     [
                         sig_diag * sig_dx_diag * dw**2,
-                        -(sig_ddx_diag * sig_diag + sig_dx_diag**2)
+                        (sig_dx_diag**2 - sig_ddx_diag * sig_diag)
                         * costate
                         * dw**2,
                     ]
@@ -759,6 +755,46 @@ class IndirectSolver:
         return states, controls, initial_adjoints, convergence_error, solve_time
 
 
+class IndirectFeedbackConditionalProjectionSolver(IndirectSolver):
+    """Feedback shooting method using E[p_t | x_t] ~= D_t x_t."""
+
+    def _conditional_projection_diagonal(self, states, costates):
+        """Diagonal of D from state and adjoint samples."""
+        return jnp.mean(states * costates, axis=0) / jnp.mean(states**2, axis=0)
+
+    def optimal_control(self, states, costates, problem_params):
+        """Closed-loop control u_t=R^-1 B^T D_t x_t for each sample."""
+        control_weight = problem_params["control_quad_penalization_scalar"]
+        control_matrix_diagonal = jnp.diag(self.problem.dynamics.inertia_inverse)
+        diagonal = self._conditional_projection_diagonal(states, costates)
+        return (control_matrix_diagonal / control_weight) * diagonal * states
+
+    @partial(jit, static_argnums=(0,))
+    def times_states_controls_costates(self, initial_costates, problem_params):
+        """Trajectories of the states, controls, and costates for fixed initial adjoint vectors."""
+        times, states, costates = self.state_and_costate_trajectories(
+            initial_costates, problem_params
+        )
+        controls = vmap(self.optimal_control, in_axes=(1, 1, None), out_axes=1)(
+            states, costates, problem_params
+        )
+        return times, states, controls[:, :-1], costates
+
+    @partial(jit, static_argnums=(0,))
+    def feedback_gains(self, initial_costates, problem_params):
+        """Diagonal feedback gains estimates for fixed initial adjoint vectors."""
+        _, states, costates = self.state_and_costate_trajectories(
+            initial_costates, problem_params
+        )
+        Ds = vmap(self._conditional_projection_diagonal, in_axes=(1, 1))(
+            states,
+            costates
+        )
+        Bs = jnp.diag(self.problem.dynamics.inertia_inverse)
+        R = problem_params["control_quad_penalization_scalar"]
+        return Bs / R * Ds[:-1]
+
+
 class IndirectFeedbackSolver(IndirectSolver):
     """Indirect shooting method solver."""
 
@@ -785,10 +821,6 @@ class IndirectFeedbackSolver(IndirectSolver):
             print("Initializing solver class.")
         self.params = parameters
         self.problem = problem
-        try:
-            self.solve(verbose=False)
-        except Exception as e:
-            raise e
         if verbose:
             print(">>> Done")
 
