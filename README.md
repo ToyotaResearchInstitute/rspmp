@@ -1,5 +1,5 @@
 
-# Indirect Shooting Methods for Stochastic Optimal Control based on the Rough Stochastic Maximum Principle
+# Indirect Shooting Methods for Stochastic Optimal Control using the Rough Stochastic Maximum Principle
 
 ## About
 
@@ -45,8 +45,6 @@ python compare_hyperparameters.py  --solve-comparison --sample-sizes-sweep
 ```bash
 python feedback_comparison.py
 ```
-
-Results are saved in `results/feedback_comparison/`. To regenerate figures from the saved data, run `python feedback_comparison.py --plot-only`.
 
 ## Setup
 
