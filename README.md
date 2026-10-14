@@ -1,5 +1,5 @@
 
-# Indirect Shooting Methods for Stochastic Optimal Control using the Rough Stochastic Maximum Principle
+# Indirect Shooting Methods for Stochastic Optimal Control using the Rough Stochastic Pontryagin Maximum Principle
 
 ## About
 
