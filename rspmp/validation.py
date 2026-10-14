@@ -47,7 +47,9 @@ class MonteCarloOptimalControlValidation:
         self._discretization_time = problem_parameters["discretization_time"]
         self._horizon = problem_parameters["horizon"]
         problem_parameters["sample_size"] = self.sample_size
-        problem_parameters["DWs"] = self.sample_disturbances()
+        problem_parameters["DWs"] = self.sample_disturbances(
+            seed=self.params.get("seed")
+        )
 
         self._problem_params = problem_parameters
         self._problem = problem_type(dynamics, problem_parameters, verbose=False)
@@ -87,11 +89,14 @@ class MonteCarloOptimalControlValidation:
         """Returns the problem."""
         return self._problem
 
-    def sample_disturbances(self) -> np.ndarray:
+    def sample_disturbances(self, seed=None) -> np.ndarray:
         """Samples disturbances."""
-        DWs = np.random.randn(self.sample_size, self.horizon, self.dynamics.num_states)
-        DWs = np.sqrt(self.dt) * DWs
-        return DWs
+        shape = (self.sample_size, self.horizon, self.dynamics.num_states)
+        if seed is None:
+            DWs = np.random.standard_normal(shape)
+        else:
+            DWs = np.random.default_rng(seed).standard_normal(shape)
+        return np.sqrt(self.dt) * DWs
 
     @partial(jit, static_argnums=(0,))
     def get_state_trajectories(self, control_trajectory, DWs):
@@ -133,6 +138,45 @@ class MonteCarloOptimalControlValidation:
             ocp.params["initial_state"], control_trajectory, DWs
         )
         return states
+
+    @partial(jit, static_argnums=(0,))
+    def get_diagonal_gain_trajectories(self, gain_trajectory, DWs):
+        """Return closed-loop control inputs u_t=diag(gain_t)x_t."""
+        ocp = self.problem
+
+        def next_scan(state, inputs):
+            gain, dw = inputs
+            control = gain * state
+            next_state = state + ocp.dt * ocp.dynamics.b(state, control)
+            next_state += ocp.dynamics.sigma(state) @ dw
+            sigma = ocp.dynamics.sigma_diagonal_terms(state)
+            sigma_dx = ocp.dynamics.sigma_dx_diagonal_terms(state)
+            next_state += 0.5 * sigma * sigma_dx * dw**2
+            return next_state, (next_state, control)
+
+        def get_trajectory(dws):
+            initial_state = ocp.params["initial_state"]
+            _, (states, controls) = scan(
+                next_scan, initial_state, (gain_trajectory, dws)
+            )
+            states = jnp.concatenate([initial_state[jnp.newaxis, :], states])
+            return states, controls
+
+        return vmap(get_trajectory)(DWs)
+
+    def get_diagonal_gain_costs(self, gain_trajectory, DWs):
+        """Return pathwise costs for a diagonal linear feedback policy."""
+        ocp = self.problem
+        states, controls = self.get_diagonal_gain_trajectories(gain_trajectory, DWs)
+        state_costs = vmap(
+            vmap(ocp.state_cost, in_axes=(0, None)), in_axes=(0, None)
+        )(states[:, :-1], ocp.params)
+        control_costs = vmap(
+            vmap(ocp.control_cost, in_axes=(0, None)), in_axes=(0, None)
+        )(controls, ocp.params)
+        return ocp.dt * (
+            jnp.sum(state_costs, axis=1) + jnp.sum(control_costs, axis=1)
+        )
 
     def get_solution_cost(self, control_trajectory):
         """Cost associated to the given control trajectory.
